@@ -1,0 +1,160 @@
+{
+  "name": "CI Pipeline Failure Alert",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "ci-pipeline-failure",
+        "httpMethod": "POST",
+        "responseMode": "onReceived"
+      },
+      "id": "trigger",
+      "name": "Pipeline Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "name": "pipeline",
+              "type": "string",
+              "value": "={{$json.body.pipelineName}}"
+            },
+            {
+              "name": "status",
+              "type": "string",
+              "value": "={{$json.body.status}}"
+            },
+            {
+              "name": "buildUrl",
+              "type": "string",
+              "value": "={{$json.body.buildUrl}}"
+            },
+            {
+              "name": "branch",
+              "type": "string",
+              "value": "={{$json.body.branch}}"
+            },
+            {
+              "name": "failedStage",
+              "type": "string",
+              "value": "={{$json.body.failedStage}}"
+            }
+          ]
+        }
+      },
+      "id": "normalize",
+      "name": "Normalize Payload",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "leftValue": "={{$json.status}}",
+              "rightValue": "failed",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "isFailure",
+      "name": "Is Failure?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "channel": "#devops-alerts",
+        "text": "=:red_circle: *{{$json.pipeline}}* failed on `{{$json.branch}}` at stage *{{$json.failedStage}}*.\\n<{{$json.buildUrl}}|View build>"
+      },
+      "id": "alertSlack",
+      "name": "Alert #devops-alerts",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [
+        900,
+        220
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "noOp",
+      "name": "No Action (build passed)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        900,
+        380
+      ]
+    }
+  ],
+  "connections": {
+    "Pipeline Webhook": {
+      "main": [
+        [
+          {
+            "node": "Normalize Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Payload": {
+      "main": [
+        [
+          {
+            "node": "Is Failure?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Failure?": {
+      "main": [
+        [
+          {
+            "node": "Alert #devops-alerts",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Action (build passed)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "notes": "Point your Azure Pipelines/GitHub Actions failure webhook at this workflow's webhook URL. Requires a Slack credential with chat:write scope on the #devops-alerts channel."
+  }
+}
