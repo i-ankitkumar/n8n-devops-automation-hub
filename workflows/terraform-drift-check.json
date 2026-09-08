@@ -1,0 +1,165 @@
+{
+  "name": "Terraform Drift Check",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 7 * * *"
+            }
+          ]
+        }
+      },
+      "id": "trigger",
+      "name": "Daily 07:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "command": "cd /infra && terraform plan -detailed-exitcode -no-color -out=/tmp/plan.out"
+      },
+      "id": "planCheck",
+      "name": "terraform plan -detailed-exitcode",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "leftValue": "={{$json.exitCode}}",
+              "rightValue": 2,
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "hasDrift",
+      "name": "Drift Detected? (exit code 2)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.JIRA_BASE_URL}}/rest/api/3/issue",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "jiraSoftwareCloudApi",
+        "jsonBody": "={{ {\"fields\": {\"project\": {\"key\": \"INFRA\"}, \"summary\": \"Terraform drift detected\", \"issuetype\": {\"name\": \"Task\"}}} }}"
+      },
+      "id": "createTicket",
+      "name": "Create Jira Ticket",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        900,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "channel": "#infra-drift",
+        "text": "=:warning: Terraform drift detected — ticket {{$json.key}} filed."
+      },
+      "id": "alertDrift",
+      "name": "Alert #infra-drift",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [
+        1120,
+        220
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "noDrift",
+      "name": "No Drift",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        900,
+        380
+      ]
+    }
+  ],
+  "connections": {
+    "Daily 07:00": {
+      "main": [
+        [
+          {
+            "node": "terraform plan -detailed-exitcode",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "terraform plan -detailed-exitcode": {
+      "main": [
+        [
+          {
+            "node": "Drift Detected? (exit code 2)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Jira Ticket": {
+      "main": [
+        [
+          {
+            "node": "Alert #infra-drift",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Drift Detected? (exit code 2)": {
+      "main": [
+        [
+          {
+            "node": "Create Jira Ticket",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Drift",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "notes": "Runs on an n8n worker with the terraform CLI and cloud credentials available (e.g. via a self-hosted n8n with Azure/AWS env vars). Exit code 2 from 'terraform plan -detailed-exitcode' means drift; 0 means no changes; 1 is an error."
+  }
+}
