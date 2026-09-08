@@ -1,0 +1,31 @@
+{
+  "name": "Broken Example",
+  "nodes": [
+    {
+      "id": "a",
+      "name": "Start",
+      "type": "n8n-nodes-base.manualTrigger",
+      "position": [240, 300]
+    },
+    {
+      "id": "b",
+      "name": "Start",
+      "type": "n8n-nodes-base.set",
+      "position": [460, 300]
+    },
+    {
+      "id": "c",
+      "name": "Missing Position",
+      "type": "n8n-nodes-base.noOp"
+    }
+  ],
+  "connections": {
+    "Start": {
+      "main": [[{"node": "Nonexistent Node", "type": "main", "index": 0}]]
+    },
+    "Ghost Source": {
+      "main": [[{"node": "Start", "type": "main", "index": 0}]]
+    }
+  },
+  "active": true
+}
