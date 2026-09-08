@@ -1,0 +1,125 @@
+{
+  "name": "GitHub PR Auto-Triage",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "pr-opened",
+        "httpMethod": "POST",
+        "responseMode": "onReceived"
+      },
+      "id": "trigger",
+      "name": "PR Opened Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{$json.body.pull_request.url}}/files",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "githubApi"
+      },
+      "id": "fetchFiles",
+      "name": "Fetch Changed Files",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const files = $input.all();\nconst changed = files.length;\nconst touchesInfra = files.some(f => /\\.tf$|azure-pipelines\\.yml$|Dockerfile$/.test(f.json.filename));\nlet sizeLabel = 'size/S';\nif (changed > 30) sizeLabel = 'size/L';\nelse if (changed > 10) sizeLabel = 'size/M';\nreturn [{ json: { changed, sizeLabel, touchesInfra, needsInfraReview: touchesInfra } }];"
+      },
+      "id": "classify",
+      "name": "Classify Size + Risk",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "issue",
+        "operation": "addLabels",
+        "labels": "={{[$json.sizeLabel, $json.touchesInfra ? 'needs-infra-review' : null].filter(Boolean)}}"
+      },
+      "id": "applyLabels",
+      "name": "Apply Labels",
+      "type": "n8n-nodes-base.github",
+      "typeVersion": 1,
+      "position": [
+        900,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "channel": "#infra-reviews",
+        "text": "=PR touches infra/pipeline files and needs an infra review: {{$json.changed}} file(s) changed."
+      },
+      "id": "notifyReviewers",
+      "name": "Notify Infra Reviewers",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [
+        900,
+        380
+      ]
+    }
+  ],
+  "connections": {
+    "PR Opened Webhook": {
+      "main": [
+        [
+          {
+            "node": "Fetch Changed Files",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Changed Files": {
+      "main": [
+        [
+          {
+            "node": "Classify Size + Risk",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classify Size + Risk": {
+      "main": [
+        [
+          {
+            "node": "Apply Labels",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Notify Infra Reviewers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "notes": "GitHub webhook: 'Pull requests' event, opened action. Requires a GitHub API credential (repo scope) and a Slack credential."
+  }
+}
