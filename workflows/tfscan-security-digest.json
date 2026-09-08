@@ -1,0 +1,108 @@
+{
+  "name": "tfscan Weekly Security Digest",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 * * 1"
+            }
+          ]
+        }
+      },
+      "id": "trigger",
+      "name": "Weekly Monday 08:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "command": "tfscan /infra --fail-on never --explain > /tmp/tfscan-output.json"
+      },
+      "id": "runScan",
+      "name": "Run tfscan",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const output = $input.first().json.stdout || '';\nconst counts = { critical: 0, high: 0, medium: 0, low: 0 };\nfor (const sev of Object.keys(counts)) {\n  const m = output.match(new RegExp(sev + ':\\\\s*(\\\\d+)'));\n  if (m) counts[sev] = parseInt(m[1], 10);\n}\nconst total = Object.values(counts).reduce((a, b) => a + b, 0);\nreturn [{ json: { ...counts, total } }];"
+      },
+      "id": "summarize",
+      "name": "Summarize Findings",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "channel": "#security",
+        "text": "=:shield: *Weekly tfscan digest* — {{$json.total}} finding(s): {{$json.critical}} critical, {{$json.high}} high, {{$json.medium}} medium, {{$json.low}} low. Full report attached in the pipeline artifact."
+      },
+      "id": "postDigest",
+      "name": "Post Digest to #security",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [
+        900,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Weekly Monday 08:00": {
+      "main": [
+        [
+          {
+            "node": "Run tfscan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run tfscan": {
+      "main": [
+        [
+          {
+            "node": "Summarize Findings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summarize Findings": {
+      "main": [
+        [
+          {
+            "node": "Post Digest to #security",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "notes": "Pairs with the tfscan CLI (github.com/i-ankitkumar/terraform-security-scanner) installed on the n8n worker. Runs the same scanner used in that project's own CI, just on a schedule instead of per-PR."
+  }
+}
