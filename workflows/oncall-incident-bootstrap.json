@@ -1,0 +1,160 @@
+{
+  "name": "On-Call Incident Bootstrap",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "alert-fired",
+        "httpMethod": "POST",
+        "responseMode": "onReceived"
+      },
+      "id": "trigger",
+      "name": "Alertmanager Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const alert = $input.first().json.body.alerts[0];\nreturn [{ json: {\n  name: alert.labels.alertname,\n  severity: alert.labels.severity,\n  service: alert.labels.service,\n  summary: alert.annotations.summary,\n  runbook: alert.annotations.runbook_url || 'no runbook linked',\n} }];"
+      },
+      "id": "normalize",
+      "name": "Normalize Alert",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "leftValue": "={{$json.severity}}",
+              "rightValue": "critical",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "isCritical",
+      "name": "Severity == critical?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.INCIDENT_API_URL}}/incidents",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "jsonBody": "={{ {\"title\": $json.name, \"service\": $json.service, \"summary\": $json.summary} }}"
+      },
+      "id": "createIncident",
+      "name": "Create Incident",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        900,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "channel": "#oncall",
+        "text": "=:rotating_light: *{{$json.name}}* on {{$json.service}} — {{$json.summary}}\\nRunbook: {{$json.runbook}}"
+      },
+      "id": "pageOncall",
+      "name": "Page #oncall",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [
+        1120,
+        220
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "logOnly",
+      "name": "Log Non-Critical",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        900,
+        380
+      ]
+    }
+  ],
+  "connections": {
+    "Alertmanager Webhook": {
+      "main": [
+        [
+          {
+            "node": "Normalize Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Alert": {
+      "main": [
+        [
+          {
+            "node": "Severity == critical?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Incident": {
+      "main": [
+        [
+          {
+            "node": "Page #oncall",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Severity == critical?": {
+      "main": [
+        [
+          {
+            "node": "Create Incident",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Non-Critical",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "notes": "Accepts a Prometheus Alertmanager webhook payload. INCIDENT_API_URL is a stand-in for whatever incident-management API you use (PagerDuty, Opsgenie, or an internal one)."
+  }
+}
