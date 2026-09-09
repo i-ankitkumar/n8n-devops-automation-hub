@@ -1,5 +1,9 @@
 # n8n DevOps Automation Hub
 
+[![CI](https://github.com/i-ankitkumar/n8n-devops-automation-hub/actions/workflows/ci.yml/badge.svg)](https://github.com/i-ankitkumar/n8n-devops-automation-hub/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/i-ankitkumar/n8n-devops-automation-hub/blob/main/LICENSE)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
+
 Five importable [n8n](https://n8n.io) workflows for common DevOps toil — CI failure
 alerting, PR triage, Terraform drift detection, a security-scan digest, and on-call
 incident bootstrapping — plus `n8nhublint`, a small structural linter that keeps every
